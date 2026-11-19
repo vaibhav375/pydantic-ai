@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -320,6 +321,8 @@ class VercelAIAdapter(UIAdapter[RequestData, UIMessage, BaseChunk, AgentDepsT, O
 
         `preserve_file_data` is a deprecated alias for `allow_uploaded_files`.
         """
+        cls._infer_agent_name(agent, infer_name, inspect.currentframe())
+
         allow_uploaded_files = resolve_allow_uploaded_files(allow_uploaded_files, preserve_file_data)
         return await super().dispatch_request(
             request,
@@ -338,7 +341,7 @@ class VercelAIAdapter(UIAdapter[RequestData, UIMessage, BaseChunk, AgentDepsT, O
             usage_limits=usage_limits,
             usage=usage,
             metadata=metadata,
-            infer_name=infer_name,
+            infer_name=False,
             toolsets=toolsets,
             capabilities=capabilities,
             on_complete=on_complete,

@@ -200,6 +200,8 @@ def create_api_app(
             deps=deps,
             model_settings=model_settings,
             instructions=instructions,
+            # This frame holds the agent in our own `agent` variable, not the user's name for it.
+            infer_name=False,
         )
         return streaming_response
 

@@ -542,6 +542,8 @@ async def test_post_chat_endpoint():
         )
 
         assert response.status_code == 200
+    # The app holds the agent in its own `agent` variable, which isn't the user's name for it.
+    assert agent.name is None
 
 
 def _parse_sse_chunk_types(body: str) -> list[str]:

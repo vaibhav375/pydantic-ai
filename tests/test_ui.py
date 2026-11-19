@@ -1655,6 +1655,48 @@ async def test_adapter_dispatch_request(monkeypatch: pytest.MonkeyPatch):
     assert captured_workspace == [workspace]
 
 
+async def test_adapter_run_methods_infer_agent_name():
+    # The name comes from the frame that called the adapter, not from the adapter's own frame
+    # (where the agent is only `self.agent`), matching what `agent.run_stream_events()` does.
+    streamed_agent = Agent(TestModel())
+    native_agent = Agent(TestModel())
+    unnamed_agent = Agent(TestModel())
+    named_agent = Agent(TestModel(), name='fig_tree')
+    request = DummyUIRunInput(messages=[ModelRequest.user_text_prompt('Hello')])
+
+    for stream in (
+        DummyUIAdapter(streamed_agent, request).run_stream(),
+        DummyUIAdapter(native_agent, request).run_stream_native(),
+        DummyUIAdapter(unnamed_agent, request).run_stream(infer_name=False),
+        DummyUIAdapter(named_agent, request).run_stream(),
+    ):
+        async for _ in stream:
+            pass
+
+    assert streamed_agent.name == 'streamed_agent'
+    assert native_agent.name == 'native_agent'
+    assert unnamed_agent.name is None
+    assert named_agent.name == 'fig_tree'
+
+
+async def test_adapter_dispatch_request_infers_agent_name():
+    dispatched_agent = Agent(TestModel())
+    request = DummyUIRunInput(messages=[ModelRequest.user_text_prompt('Hello')])
+
+    async def receive() -> dict[str, Any]:
+        return {'type': 'http.request', 'body': request.model_dump_json().encode('utf-8')}
+
+    starlette_request = Request(
+        scope={'type': 'http', 'method': 'POST', 'headers': [(b'content-type', b'application/json')]},
+        receive=receive,
+    )
+
+    response = await DummyUIAdapter.dispatch_request(starlette_request, agent=dispatched_agent)
+    assert isinstance(response, StreamingResponse)
+
+    assert dispatched_agent.name == 'dispatched_agent'
+
+
 def test_manage_system_prompt_visible_in_base_adapter_signatures():
     from_request_parameters = inspect.signature(DummyUIAdapter.from_request).parameters
     dispatch_request_parameters = inspect.signature(DummyUIAdapter.dispatch_request).parameters

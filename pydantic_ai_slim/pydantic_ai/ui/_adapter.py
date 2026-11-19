@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import re
 import warnings
 from abc import ABC, abstractmethod
@@ -8,6 +9,7 @@ from copy import deepcopy
 from dataclasses import KW_ONLY, Field, dataclass, field, replace
 from functools import cached_property
 from http import HTTPStatus
+from types import FrameType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -1468,6 +1470,16 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
         """
         return self.build_event_stream().streaming_response(stream)
 
+    @staticmethod
+    def _infer_agent_name(agent: AbstractAgent[Any, Any], infer_name: bool, frame: FrameType | None) -> None:
+        """Name an unnamed agent after the variable holding it in the caller of `frame`'s function.
+
+        Adapter entry points call this with their own frame and then pass `infer_name=False` to the agent,
+        whose caller would otherwise be the adapter, where the agent is only `self.agent`.
+        """
+        if infer_name and agent.name is None:
+            agent._infer_name(frame)  # pyright: ignore[reportPrivateUsage]
+
     def run_stream_native(
         self,
         *,
@@ -1533,6 +1545,8 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
                 Use `capabilities=[NativeTool(...)]` to add provider-side native tools per request.
             workspace: Optional [workspace](../../workspace.md) for this run: a backend or `Workspace` to use as is, a `WorkspaceRef` to continue in, or `'new'` for a fresh one instead of the one in `message_history`.
         """
+        self._infer_agent_name(self.agent, infer_name, inspect.currentframe())
+
         if conversation_id is None:
             conversation_id = self.conversation_id
         self._check_conversation_store_run(message_history, conversation_id, usage)
@@ -1605,7 +1619,7 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
                 usage_limits=usage_limits,
                 usage=usage,
                 metadata=metadata,
-                infer_name=infer_name,
+                infer_name=False,
                 toolsets=toolsets,
                 capabilities=run_capabilities,
                 workspace=workspace,
@@ -1671,6 +1685,8 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
             on_cancel: Optional callback function called when the agent run ends in first-party cancellation.
                 The callback receives the [`RunCancelled`][pydantic_ai.exceptions.RunCancelled] and can optionally yield additional protocol-specific events.
         """
+        self._infer_agent_name(self.agent, infer_name, inspect.currentframe())
+
         return self.transform_stream(
             self.run_stream_native(
                 output_type=output_type,
@@ -1687,7 +1703,7 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
                 usage_limits=usage_limits,
                 usage=usage,
                 metadata=metadata,
-                infer_name=infer_name,
+                infer_name=False,
                 toolsets=toolsets,
                 capabilities=capabilities,
                 workspace=workspace,
@@ -1794,6 +1810,8 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
         Returns:
             A streaming Starlette response with protocol-specific events encoded per the request's `Accept` header value.
         """
+        cls._infer_agent_name(agent, infer_name, inspect.currentframe())
+
         try:
             from starlette.responses import Response  # noqa: F401  # pyright: ignore[reportUnusedImport]
         except ImportError as e:  # pragma: no cover
@@ -1847,7 +1865,7 @@ class UIAdapter(ABC, Generic[RunInputT, MessageT, EventT, AgentDepsT, OutputData
                 usage_limits=usage_limits,
                 usage=usage,
                 metadata=metadata,
-                infer_name=infer_name,
+                infer_name=False,
                 toolsets=toolsets,
                 capabilities=capabilities,
                 workspace=workspace,

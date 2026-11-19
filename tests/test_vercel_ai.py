@@ -4966,6 +4966,24 @@ async def test_adapter_dispatch_request():
     )
 
 
+async def test_adapter_dispatch_request_infers_agent_name():
+    chat_agent = Agent(model=TestModel())
+    request = SubmitMessage(id='foo', messages=[UIMessage(id='bar', role='user', parts=[TextUIPart(text='Hello')])])
+
+    async def receive() -> dict[str, Any]:
+        return {'type': 'http.request', 'body': request.model_dump_json().encode('utf-8')}
+
+    starlette_request = Request(
+        scope={'type': 'http', 'method': 'POST', 'headers': [(b'content-type', b'application/json')]},
+        receive=receive,
+    )
+
+    response = await VercelAIAdapter.dispatch_request(starlette_request, agent=chat_agent)
+    assert isinstance(response, StreamingResponse)
+
+    assert chat_agent.name == 'chat_agent'
+
+
 async def test_adapter_dispatch_request_cancellation_token():
     token = CancellationToken()
     token.cancel()
